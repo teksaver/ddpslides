@@ -1,0 +1,7 @@
+name: Publish Document
+account: rpubs
+server: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/178446/9ff94587df084a9f9709abe1fa251d66
+bundleId: https://api.rpubs.com/api/v1/document/178446/9ff94587df084a9f9709abe1fa251d66
+url: http://rpubs.com/teksaver/178446
+when: 1462378873.85518

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Power Plant Energy Output</title>
+  <meta charset="utf-8">
+  <meta name="description" content="Power Plant Energy Output">
+  <meta name="author" content="Sylvain Tenier">
+  <meta name="generator" content="slidify" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/default.css" media="all" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/phone.css" 
+    media="only screen and (max-device-width: 480px)" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/slidify.css" >
+  <link rel="stylesheet" href="libraries/highlighters/highlight.js/css/tomorrow.css" />
+  <base target="_blank"> <!-- This amazingness opens all links in a new tab. -->  <link rel=stylesheet href="./assets/css/ribbons.css"></link>
+
+  
+  <!-- Grab CDN jQuery, fall back to local if offline -->
+  <script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.min.js"></script>
+  <script>window.jQuery || document.write('<script src="libraries/widgets/quiz/js/jquery.js"><\/script>')</script> 
+  <script data-main="libraries/frameworks/io2012/js/slides" 
+    src="libraries/frameworks/io2012/js/require-1.0.8.min.js">
+  </script>
+  
+  
+
+</head>
+<body style="opacity: 0">
+  <slides class="layout-widescreen">
+    
+    <!-- LOGO SLIDE -->
+        <slide class="title-slide segue nobackground">
+  <hgroup class="auto-fadein">
+    <h1>Power Plant Energy Output</h1>
+    <h2>A shiny and slidify assignment for the DDP course</h2>
+    <p>Sylvain Tenier<br/>Esigelec</p>
+  </hgroup>
+  <article></article>  
+</slide>
+    
+
+    <!-- SLIDES -->
+    <slide class="" id="slide-1" style="background:;">
+  <hgroup>
+    <h2>Combined Cycle Power Plant Data Set</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>The shiny application uses the  Combined Cycle Power Plant Data Set  available at <a href="http://archive.ics.uci.edu/ml/datasets/Combined+Cycle+Power+Plant">the UCI web site</a>.</p>
+
+<p>It displays the predicted amount of power provided by 3 machine learning algorithms : linear regression, random forests and generalized linear model. Other models could be added to the resulting graph but shiny.io puts a strong constraint on calculation resources for deployment, at least on the basic plan.</p>
+
+<p>The application is available at <a href="https://teksaver.shinyapps.io/DDPassignment/">shiny.io</a></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="class" id="id" style="background:;">
+  <hgroup>
+    <h2>Model calculation</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>At startup the application sources the <em>prediction.R</em> files that fits 3 models</p>
+
+<pre><code class="r">suppressMessages(library(xlsx))
+suppressMessages(library(caret))
+
+# load file from data folder
+# original data available at http://archive.ics.uci.edu/ml/datasets/Combined+Cycle+Power+Plant
+data &lt;- read.xlsx2(&quot;data/Folds5x2_pp.xlsx&quot;,1,
+                   colClasses = c(&quot;numeric&quot;,&quot;numeric&quot;,&quot;numeric&quot;,&quot;numeric&quot;,&quot;numeric&quot;))
+
+# fit 3 fast models (longer training not working with shiny.io basic plan)
+lmFit &lt;- train(PE ~.,data=data,method=&quot;lm&quot;,preProc=c(&quot;center&quot;,&quot;scale&quot;))
+dtFit &lt;- train(PE ~.,data=data,method=&quot;rpart&quot;,preProc=c(&quot;center&quot;,&quot;scale&quot;))
+glmFit  &lt;- train(PE ~.,data=data,method=&quot;glm&quot;,preProc=c(&quot;center&quot;,&quot;scale&quot;))
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-3" style="background:;">
+  <hgroup>
+    <h2>Prediction function</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>This function receives the dynamic values and returns a dataframe with the predicted values</p>
+
+<pre><code class="r">pred_data &lt;- function(temp, vac, press, humid ) {
+  dfTest&lt;-data.frame(AT=temp,V=vac,AP=press,RH=humid)
+  lmPred &lt;- predict(lmFit,dfTest)
+  dtPred &lt;- predict(dtFit,dfTest)
+  glmPred &lt;- predict(glmFit,dfTest)
+  res&lt;- data.frame(method=&quot;lm&quot;,value=lmPred)
+  res&lt;-rbind(res,data.frame(method=&quot;dt&quot;,value=dtPred))
+  res&lt;-rbind(res,data.frame(method=&quot;glm&quot;,value=glmPred))
+  res
+}
+pred_data(30,50,1000,60) # example call for illustration
+</code></pre>
+
+<pre><code>##    method    value
+## 1      lm 436.1878
+## 11     dt 438.1841
+## 12    glm 436.1878
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-4" style="background:;">
+  <hgroup>
+    <h2>Reactive behaviour</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>The <em>server.R</em> file defines a reactive function and 2 renderings that are displayed in the <a href="https://teksaver.shinyapps.io/DDPassignment/">running shiny application</a></p>
+
+<pre><code class="r">dataPred &lt;- reactive({
+    pred_data(input$temperature,input$vacuum,input$pressure,input$humidity)
+  })
+
+  output$meanVal &lt;- renderText({
+    paste(&quot;The mean predicted value is: &quot;,round(mean(dataPred()$value),digits=2), &quot; MW&quot;)
+  })
+
+  output$predPlot &lt;- renderPlot({
+    g &lt;- ggplot(dataPred(),aes(x=method,y=value))
+    g + geom_bar(stat=&quot;identity&quot;) + 
+      coord_cartesian(ylim=c(400, 500)) +
+      geom_hline(yintercept=mean(dataPred()$value),linetype=&quot;dotted&quot;) +
+      ggtitle(&quot;Predicted power output according to prediction models&quot;)
+  })
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+    <slide class="backdrop"></slide>
+  </slides>
+  <div class="pagination pagination-small" id='io2012-ptoc' style="display:none;">
+    <ul>
+      <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=1 title='Combined Cycle Power Plant Data Set'>
+         1
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=2 title='Model calculation'>
+         2
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=3 title='Prediction function'>
+         3
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=4 title='Reactive behaviour'>
+         4
+      </a>
+    </li>
+  </ul>
+  </div>  <!--[if IE]>
+    <script 
+      src="http://ajax.googleapis.com/ajax/libs/chrome-frame/1/CFInstall.min.js">  
+    </script>
+    <script>CFInstall.check({mode: 'overlay'});</script>
+  <![endif]-->
+</body>
+  <!-- Load Javascripts for Widgets -->
+  
+  <!-- MathJax: Fall back to local if CDN offline but local image fonts are not supported (saves >100MB) -->
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {
+        inlineMath: [['$','$'], ['\\(','\\)']],
+        processEscapes: true
+      }
+    });
+  </script>
+  <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/2.0-latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  <!-- <script src="https://c328740.ssl.cf1.rackcdn.com/mathjax/2.0-latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script> -->
+  <script>window.MathJax || document.write('<script type="text/x-mathjax-config">MathJax.Hub.Config({"HTML-CSS":{imageFont:null}});<\/script><script src="libraries/widgets/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"><\/script>')
+</script>
+<!-- LOAD HIGHLIGHTER JS FILES -->
+  <script src="libraries/highlighters/highlight.js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  <!-- DONE LOADING HIGHLIGHTER JS FILES -->
+   
+  </html>
